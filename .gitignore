@@ -1,1 +1,28 @@
+# Python virtual environment
 venv/
+.venv/
+env/
+ 
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+ 
+# ChromaDB local database (too large to commit, recreated on ingest)
+chroma_db/
+ 
+# HuggingFace model cache (downloaded automatically on first run)
+.cache/
+ 
+# Environment variables (never commit secrets)
+.env
+ 
+# Node
+node_modules/
+ 
+# Vite build output
+frontend/dist/
+ 
+# OS files
+.DS_Store
+Thumbs.db

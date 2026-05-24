@@ -1,122 +1,266 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import "./App.css";
+import { useState, useRef, useEffect } from "react";
 
-function App() {
-  const [count, setCount] = useState(0)
+const API = "http://localhost:8000";
+
+const SUGGESTIONS = [
+  "Summarize the main topics",
+  "What are the key concepts?",
+  "Explain the most important points",
+  "What should I focus on?",
+];
+
+export default function App() {
+  const [messages, setMessages] = useState([]);
+  const [question, setQuestion] = useState("");
+  const [docs, setDocs] = useState([]); // { name, chunks }
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [dragging, setDragging] = useState(false);
+  const chatRef = useRef(null);
+  const textareaRef = useRef(null);
+
+  // load existing documents on mount
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch(`${API}/documents`);
+        const data = await res.json();
+        setDocs(data.documents.map((name) => ({ name })));
+      } catch {
+        // API not running yet - that's ok
+      }
+    })();
+  }, []);
+
+  // auto scroll to bottom when messages change
+  useEffect(() => {
+    if (chatRef.current) {
+      chatRef.current.scrollTop = chatRef.current.scrollHeight;
+    }
+  }, [messages, loading]);
+
+  async function uploadFile(file) {
+    if (!file || !file.name.endsWith(".pdf")) {
+      alert("Please upload a PDF file.");
+      return;
+    }
+
+    setUploading(true);
+    const form = new FormData();
+    form.append("file", file);
+
+    try {
+      const res = await fetch(`${API}/ingest`, { method: "POST", body: form });
+      const data = await res.json();
+
+      setDocs((prev) => {
+        // don't add duplicate
+        if (prev.find((d) => d.name === data.filename)) return prev;
+        return [...prev, { name: data.filename, chunks: data.chunks_created }];
+      });
+    } catch {
+      alert("Upload failed. Make sure the backend is running.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function ask(q) {
+    const text = q || question.trim();
+    if (!text || loading) return;
+
+    setMessages((prev) => [...prev, { role: "user", content: text }]);
+    setQuestion("");
+    setLoading(true);
+
+    try {
+      const res = await fetch(`${API}/query`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ question: text, top_k: 3 }),
+      });
+      const data = await res.json();
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: data.answer,
+          sources: data.sources,
+        },
+      ]);
+    } catch {
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content:
+            "Could not reach the backend. Make sure the FastAPI server is running on port 8000.",
+          sources: [],
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function clearDocs() {
+    if (!confirm("Clear all documents?")) return;
+    await fetch(`${API}/documents`, { method: "DELETE" });
+    setDocs([]);
+    setMessages([]);
+  }
+
+  function onKeyDown(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      ask();
+    }
+  }
+
+  function onDrop(e) {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files[0];
+    uploadFile(file);
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div className="app">
+      <main className="main">
+        <div className="topbar">
+          <div className="topbar-left">
+            <span className="logo-icon">📄</span>
+            <div>
+              <div className="topbar-title">Ask your documents</div>
+              <div className="topbar-sub">
+                {docs.length === 0
+                  ? "No documents loaded"
+                  : `${docs.length} document${docs.length > 1 ? "s" : ""} loaded`}
+              </div>
+            </div>
+          </div>
+          <div className="topbar-right">
+            {docs.length > 0 && (
+              <button className="clear-btn" onClick={clearDocs}>
+                ✕ clear all
+              </button>
+            )}
+            <div className="topbar-sub">
+              <span className="status-dot" />
+              RAG pipeline ready
+            </div>
+          </div>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
 
-      <div className="ticks"></div>
+        {/* Chat */}
+        <div className="chat" ref={chatRef}>
+          {messages.length === 0 && !loading ? (
+            <div className="empty-state">
+              <div className="empty-icon">🔍</div>
+              <div className="empty-title">Ask anything about your PDFs</div>
+              <div className="empty-sub">
+                Upload a document below, then ask questions.
+                Answers will cite which document they came from.
+              </div>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+              <div
+                className={`upload-zone ${dragging ? "dragging" : ""}`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragging(true);
+                }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={onDrop}
+              >
+                <input
+                  type="file"
+                  accept=".pdf"
+                  onChange={(e) => uploadFile(e.target.files[0])}
+                />
+                <div className="upload-icon">⬆️</div>
+                <div className="upload-hint">
+                  <strong>Click or drag</strong> a PDF here
+                </div>
+                {uploading && (
+                  <div className="uploading-bar">
+                    <div className="uploading-bar-fill" />
+                  </div>
+                )}
+              </div>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+              {docs.length > 0 && (
+                <div className="suggestions">
+                  {SUGGESTIONS.map((s) => (
+                    <button
+                      key={s}
+                      className="suggestion-chip"
+                      onClick={() => ask(s)}
+                    >
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <>
+              {messages.map((msg, i) => (
+                <div key={i} className={`message ${msg.role}`}>
+                  <div className="bubble">{msg.content}</div>
+                  {msg.sources && msg.sources.length > 0 && (
+                    <div className="sources">
+                      {msg.sources.map((s) => (
+                        <span key={s} className="source-tag">
+                          ◆ {s}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {loading && (
+                <div className="message assistant">
+                  <div className="thinking">
+                    <div className="dots">
+                      <div className="dot" />
+                      <div className="dot" />
+                      <div className="dot" />
+                    </div>
+                    searching documents...
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* Input */}
+        <div className="input-area">
+          <div className="input-wrap">
+            <textarea
+              ref={textareaRef}
+              placeholder={
+                docs.length === 0
+                  ? "Upload a PDF first..."
+                  : "Ask a question about your documents..."
+              }
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={onKeyDown}
+              rows={1}
+              disabled={docs.length === 0 || loading}
+            />
+          </div>
+          <button
+            className="send-btn"
+            onClick={() => ask()}
+            disabled={!question.trim() || loading || docs.length === 0}
+          >
+            ↑
+          </button>
+        </div>
+      </main>
+    </div>
+  );
 }
-
-export default App
