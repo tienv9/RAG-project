@@ -1,7 +1,7 @@
-import fitz
-import chromadb
-from sentence_transformers import SentenceTransformer
-from transformers import pipeline
+import fitz # type: ignore
+import chromadb # type: ignore
+from sentence_transformers import SentenceTransformer # type: ignore
+from transformers import pipeline # type: ignore
 
 # 384-dim embeddings, free, CPU-friendly. Upgrade to text-embedding-3-small (OpenAI) for better recall.
 EMBED = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')

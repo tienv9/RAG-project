@@ -1,6 +1,6 @@
 import sys
 from unittest.mock import MagicMock
-import pytest
+import pytest # type: ignore
 
 # Patch heavy deps before importing rag so the module-level model loading never runs.
 _mock_fitz = MagicMock()

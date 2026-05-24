@@ -68,7 +68,7 @@ cd "Backend FastAPI"; .\venv\Scripts\python -m pytest test_rag.py -v
 
 ## Planned improvements (v2)
 - Swap flan-t5-base for a better LLM (Mistral or Claude API)
-- Add reranking after retrieval
+- Add re-ranking after retrieval
 - Semantic chunking instead of fixed word count
 - Source citations with page numbers
 - pgvector on AWS RDS for production vector storage
