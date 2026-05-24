@@ -84,6 +84,16 @@ body {
   animation: pulse 2s ease-in-out infinite;
 }
 
+.status-dot.disconnected {
+  background: var(--danger);
+  animation: pulse-fast 1s ease-in-out infinite;
+}
+
+@keyframes pulse-fast {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .2; }
+}
+
 @keyframes pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: .4; }

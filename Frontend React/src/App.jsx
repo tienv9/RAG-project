@@ -17,6 +17,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
+  const [connected, setConnected] = useState(false);
   const chatRef = useRef(null);
   const textareaRef = useRef(null);
 
@@ -27,8 +28,9 @@ export default function App() {
         const res = await fetch(`${API}/documents`);
         const data = await res.json();
         setDocs(data.documents.map((name) => ({ name })));
+        setConnected(true);
       } catch {
-        // API not running yet - that's ok
+        setConnected(false);
       }
     })();
   }, []);
@@ -147,8 +149,8 @@ export default function App() {
               </button>
             )}
             <div className="topbar-sub">
-              <span className="status-dot" />
-              RAG pipeline ready
+              <span className={`status-dot ${connected ? "" : "disconnected"}`} />
+              {connected ? "RAG pipeline ready" : "RAG pipeline not connected"}
             </div>
           </div>
         </div>
