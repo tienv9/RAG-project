@@ -248,11 +248,17 @@ export default function App() {
                   : "Ask a question about your documents..."
               }
               value={question}
-              onChange={(e) => setQuestion(e.target.value)}
+              onChange={(e) => {
+                const val = e.target.value;
+                if (val.length <= 2000) setQuestion(val);
+              }}
               onKeyDown={onKeyDown}
               rows={1}
               disabled={docs.length === 0 || loading}
             />
+            {question.length > 0 && (
+              <span className="char-count">{question.length} / 2000</span>
+            )}
           </div>
           <button
             className="send-btn"

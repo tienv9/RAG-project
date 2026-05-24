@@ -289,10 +289,19 @@ body {
   border: 1px solid var(--border);
   border-radius: 12px;
   display: flex;
-  align-items: flex-end;
+  flex-direction: column;
   padding: 4px;
   transition: border-color .2s;
 }
+
+.char-count {
+  align-self: flex-end;
+  font-size: 10px;
+  font-family: var(--mono);
+  color: var(--muted);
+  padding: 2px 8px 4px;
+}
+
 
 .input-wrap:focus-within { border-color: var(--accent); }
 
