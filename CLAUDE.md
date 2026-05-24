@@ -46,15 +46,24 @@ rag-app/
 - GET  /documents  — list all ingested documents
 - DELETE /documents — clear all documents
 
+## Shell
+Always use PowerShell syntax for commands — never Bash. The user is on Windows and cannot run Bash.
+- Use `.\venv\Scripts\python` not `python` or `source venv/bin/activate`
+- Use `;` to chain commands, not `&&`
+- Use `$env:VAR` for environment variables, not `export VAR=`
+
 ## How to run
-```bash
+```powershell
 # backend
-cd backend && python -m venv venv && source venv/bin/activate
-pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+cd "Backend FastAPI"; .\venv\Scripts\python -m venv venv
+.\venv\Scripts\pip install -r requirements.txt
+.\venv\Scripts\uvicorn main:app --reload --port 8000
 
 # frontend
-cd frontend && npm run dev
+cd "Frontend React"; npm run dev
+
+# tests
+cd "Backend FastAPI"; .\venv\Scripts\python -m pytest test_rag.py -v
 ```
 
 ## Planned improvements (v2)
