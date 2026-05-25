@@ -167,7 +167,7 @@ export default function App() {
               </div>
 
               <div
-                className={`upload-zone ${dragging ? "dragging" : ""}`}
+                className={`upload-zone ${dragging ? "dragging" : ""} ${uploading ? "uploading" : ""}`}
                 onDragOver={(e) => {
                   e.preventDefault();
                   setDragging(true);
@@ -178,12 +178,22 @@ export default function App() {
                 <input
                   type="file"
                   accept=".pdf"
+                  disabled={uploading}
                   onChange={(e) => uploadFile(e.target.files[0])}
                 />
-                <div className="upload-icon">⬆️</div>
-                <div className="upload-hint">
-                  <strong>Click or drag</strong> a PDF here
-                </div>
+                {uploading ? (
+                  <div className="upload-loading">
+                    <div className="upload-spinner" />
+                    <div className="upload-loading-text">Processing PDF…</div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="upload-icon">⬆️</div>
+                    <div className="upload-hint">
+                      <strong>Click or drag</strong> a PDF here
+                    </div>
+                  </>
+                )}
                 {uploading && (
                   <div className="uploading-bar">
                     <div className="uploading-bar-fill" />
