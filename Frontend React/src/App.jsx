@@ -20,6 +20,7 @@ export default function App() {
   const [dragging, setDragging] = useState(false);
   const [connected, setConnected] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState(null); // { type: "error"|"success", text }
   const chatRef = useRef(null);
   const textareaRef = useRef(null);
   const addFileRef = useRef(null);
@@ -69,6 +70,7 @@ export default function App() {
     }
 
     setUploading(true);
+    setUploadMsg(null);
     const form = new FormData();
     form.append("file", file);
 
@@ -76,13 +78,23 @@ export default function App() {
       const res = await fetch(`${API}/ingest`, { method: "POST", body: form });
       const data = await res.json();
 
-      setDocs((prev) => {
-        // don't add duplicate
-        if (prev.find((d) => d.name === data.filename)) return prev;
-        return [...prev, { name: data.filename, chunks: data.chunks_created }];
-      });
+      if (res.status === 409) {
+        setUploadMsg({ type: "error", text: `"${file.name}" is already loaded.` });
+        setTimeout(() => setUploadMsg(null), 2000);
+        return;
+      }
+      if (!res.ok) {
+        setUploadMsg({ type: "error", text: data.detail ?? "Upload failed." });
+        setTimeout(() => setUploadMsg(null), 2000);
+        return;
+      }
+
+      setDocs((prev) => [...prev, { name: data.filename, chunks: data.chunks_created }]);
+      setUploadMsg({ type: "success", text: `"${data.filename}" added successfully.` });
+      setTimeout(() => setUploadMsg(null), 2000);
     } catch {
-      alert("Upload failed. Make sure the backend is running.");
+      setUploadMsg({ type: "error", text: "Upload failed. Make sure the backend is running." });
+      setTimeout(() => setUploadMsg(null), 2000);
     } finally {
       setUploading(false);
     }
@@ -321,6 +333,12 @@ export default function App() {
           </button>
         </div>
       </main>
+
+      {uploadMsg && (
+        <div className={`toast toast--${uploadMsg.type}`}>
+          {uploadMsg.text}
+        </div>
+      )}
     </div>
   );
 }

@@ -113,6 +113,12 @@ def clear_docs():
     chroma_client.delete_collection("documents")
     collection = chroma_client.get_or_create_collection("documents")
 
+def doc_exists(filename: str) -> bool:
+    if collection.count() == 0:
+        return False
+    result = collection.get(where={"source": filename})
+    return len(result["ids"]) > 0
+
 def list_docs() -> list[str]:
     if collection.count() == 0:
         return []

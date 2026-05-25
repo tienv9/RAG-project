@@ -1,7 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException # type: ignore
 from fastapi.middleware.cors import CORSMiddleware # type: ignore
 from pydantic import BaseModel # type: ignore
-from rag import process_pdf, query, list_docs, clear_docs
+from rag import process_pdf, query, list_docs, clear_docs, doc_exists
 app = FastAPI(title="RAG Assistant")
 
 # Allow the React frontend (localhost:5173) to call this API
@@ -40,6 +40,9 @@ async def ingest(file: UploadFile = File(...)):
     """
     if not file.filename.endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Only PDF files are supported.")
+
+    if doc_exists(file.filename):
+        raise HTTPException(status_code=409, detail=f"{file.filename} is already ingested.")
 
     file_bytes = await file.read()
     chunk_count = process_pdf(file_bytes, file.filename)
