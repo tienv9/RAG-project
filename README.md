@@ -1,4 +1,4 @@
-# DocuQuery
+# AskMyDocs
 
 A RAG (Retrieval-Augmented Generation) app that lets you upload any PDF and ask questions about it. Answers are grounded in the document with source citations.
 

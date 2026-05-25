@@ -1,4 +1,4 @@
-# RAG Study Assistant — project context
+# AskMyDocs — project context
 
 ## What this is
 A RAG (Retrieval-Augmented Generation) app that lets users upload any PDF
