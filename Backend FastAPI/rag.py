@@ -108,9 +108,10 @@ def query(question: str, top_k: int = 3) -> dict:
     }
 
 def clear_docs():
+    global collection
     # ChromaDB has no truncate — delete and recreate is the only way to wipe all vectors.
     chroma_client.delete_collection("documents")
-    chroma_client.get_or_create_collection("documents")
+    collection = chroma_client.get_or_create_collection("documents")
 
 def list_docs() -> list[str]:
     if collection.count() == 0:
