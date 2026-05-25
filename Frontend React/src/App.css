@@ -256,6 +256,16 @@ body {
   border-bottom-left-radius: 4px;
 }
 
+.bubble ul, .bubble ol {
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bubble p { margin: 0; }
+.bubble p + p { margin-top: 8px; }
+
 .sources {
   display: flex;
   flex-wrap: wrap;

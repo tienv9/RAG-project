@@ -1,5 +1,6 @@
 import "./App.css";
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
 
 const API = "http://localhost:8000";
 
@@ -219,7 +220,7 @@ export default function App() {
             <>
               {messages.map((msg, i) => (
                 <div key={i} className={`message ${msg.role}`}>
-                  <div className="bubble">{msg.content}</div>
+                  <div className="bubble"><ReactMarkdown>{msg.content}</ReactMarkdown></div>
                   {msg.sources && msg.sources.length > 0 && (
                     <div className="sources">
                       {msg.sources.map((s) => (
