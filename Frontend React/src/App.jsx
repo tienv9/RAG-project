@@ -19,12 +19,28 @@ export default function App() {
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [checking, setChecking] = useState(false);
   const chatRef = useRef(null);
   const textareaRef = useRef(null);
+
+  async function checkConnection() {
+    setChecking(true);
+    try {
+      const res = await fetch(`${API}/documents`);
+      const data = await res.json();
+      setDocs(data.documents.map((name) => ({ name })));
+      setConnected(true);
+    } catch {
+      setConnected(false);
+    } finally {
+      setChecking(false);
+    }
+  }
 
   // load existing documents on mount
   useEffect(() => {
     (async () => {
+      setChecking(true);
       try {
         const res = await fetch(`${API}/documents`);
         const data = await res.json();
@@ -32,6 +48,8 @@ export default function App() {
         setConnected(true);
       } catch {
         setConnected(false);
+      } finally {
+        setChecking(false);
       }
     })();
   }, []);
@@ -152,6 +170,12 @@ export default function App() {
             <div className="topbar-sub">
               <span className={`status-dot ${connected ? "" : "disconnected"}`} />
               {connected ? "RAG pipeline ready" : "RAG pipeline not connected"}
+              <button
+                className={`refresh-btn ${checking ? "spinning" : ""}`}
+                onClick={checkConnection}
+                disabled={checking}
+                title="Check connection"
+              >↻</button>
             </div>
           </div>
         </div>
