@@ -1,12 +1,12 @@
 import fitz # type: ignore
 import chromadb # type: ignore
+import ollama # type: ignore
 from sentence_transformers import SentenceTransformer # type: ignore
-from transformers import pipeline # type: ignore
+
+OLLAMA_MODEL = "llama3.2"  # change to any model you have pulled locally
 
 # 384-dim embeddings, free, CPU-friendly. Upgrade to text-embedding-3-small (OpenAI) for better recall.
 EMBED = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
-# gpt2 is weak at instruction-following; swap for Claude API or Mistral when ready.
-LLM = pipeline("text-generation", model="gpt2")
 
 # ChromaDB persists vectors to disk so re-ingesting on every restart isn't needed.
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
@@ -92,9 +92,8 @@ def query(question: str, top_k: int = 3) -> dict:
 
                 '''
 
-    output = LLM(prompt, max_new_tokens=256, do_sample=False, truncation=True)
-    # Slice off the prompt prefix so only the generated answer is returned.
-    answer = output[0]["generated_text"][len(prompt):].strip()
+    response = ollama.generate(model=OLLAMA_MODEL, prompt=prompt)
+    answer = response["response"].strip()
 
     # Deduplicate sources — same file may appear across multiple matched chunks.
     sources = list({m["source"] for m in matched_sources})
