@@ -14,7 +14,7 @@ collection = chroma_client.get_or_create_collection(name="documents")
 
 def extract_text_from_PDF(file_bytes: bytes) -> str:
     """Pull text from pdf using fitz into raw text"""
-    doc = fitz.open(file_bytes, filetype="pdf")
+    doc = fitz.open(stream=file_bytes, filetype="pdf")
     text = ""
 
     for page in doc:
@@ -105,12 +105,12 @@ def query(question: str, top_k: int = 3) -> dict:
         "chunks_used": matched_chunks,
     }
 
-def clear_doc():
+def clear_docs():
     # ChromaDB has no truncate — delete and recreate is the only way to wipe all vectors.
     chroma_client.delete_collection("documents")
     chroma_client.get_or_create_collection("documents")
 
-def list_doc() -> list[str]:
+def list_docs() -> list[str]:
     if collection.count() == 0:
         return []
     all_meta = collection.get(include=["metadatas"])["metadatas"]
