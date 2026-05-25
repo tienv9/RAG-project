@@ -13,12 +13,15 @@ chroma_client = chromadb.PersistentClient(path="./chroma_db")
 collection = chroma_client.get_or_create_collection(name="documents")
 
 def extract_text_from_PDF(file_bytes: bytes) -> str:
-    """Pull text from pdf using fitz into raw text"""
     doc = fitz.open(stream=file_bytes, filetype="pdf")
     text = ""
 
     for page in doc:
         text += page.get_text()
+        links = [link["uri"] for link in page.get_links() if link.get("uri")]
+        if links:
+            text += "\nLinks on this page: " + ", ".join(links) + "\n"
+
     return text
 
 def break_down_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list[str]:
