@@ -173,8 +173,6 @@ export default function App() {
                   : `${docs.length} document${docs.length > 1 ? "s" : ""} loaded`}
               </div>
             </div>
-          </div>
-          <div className="topbar-right">
             {docs.length > 0 && (
               <>
                 <input
@@ -191,10 +189,14 @@ export default function App() {
                 >
                   {uploading ? "Uploading…" : "+ Add PDF"}
                 </button>
-                <button className="clear-btn" onClick={clearDocs}>
-                  ✕ clear all
-                </button>
               </>
+            )}
+          </div>
+          <div className="topbar-right">
+            {docs.length > 0 && (
+              <button className="clear-btn" onClick={clearDocs}>
+                ✕ clear all
+              </button>
             )}
             <div className="topbar-sub">
               <span className={`status-dot ${connected ? "" : "disconnected"}`} />
