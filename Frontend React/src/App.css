@@ -399,6 +399,22 @@ textarea::placeholder { color: var(--muted); }
 .send-btn:active { transform: scale(.95); }
 .send-btn:disabled { opacity: .35; cursor: not-allowed; }
 
+.add-doc-btn {
+  padding: 6px 10px;
+  background: transparent;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
+  font-family: var(--mono);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background .2s;
+  letter-spacing: .02em;
+}
+
+.add-doc-btn:hover { background: rgba(124,109,250,.1); }
+.add-doc-btn:disabled { opacity: .4; cursor: not-allowed; }
+
 .clear-btn {
   padding: 6px 10px;
   background: transparent;

@@ -22,6 +22,7 @@ export default function App() {
   const [checking, setChecking] = useState(false);
   const chatRef = useRef(null);
   const textareaRef = useRef(null);
+  const addFileRef = useRef(null);
 
   async function checkConnection() {
     setChecking(true);
@@ -163,9 +164,25 @@ export default function App() {
           </div>
           <div className="topbar-right">
             {docs.length > 0 && (
-              <button className="clear-btn" onClick={clearDocs}>
-                ✕ clear all
-              </button>
+              <>
+                <input
+                  ref={addFileRef}
+                  type="file"
+                  accept=".pdf"
+                  style={{ display: "none" }}
+                  onChange={(e) => { uploadFile(e.target.files[0]); e.target.value = ""; }}
+                />
+                <button
+                  className="add-doc-btn"
+                  onClick={() => addFileRef.current.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? "Uploading…" : "+ Add PDF"}
+                </button>
+                <button className="clear-btn" onClick={clearDocs}>
+                  ✕ clear all
+                </button>
+              </>
             )}
             <div className="topbar-sub">
               <span className={`status-dot ${connected ? "" : "disconnected"}`} />
