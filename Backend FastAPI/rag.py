@@ -10,7 +10,10 @@ EMBED = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
 # ChromaDB persists vectors to disk so re-ingesting on every restart isn't needed.
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
-collection = chroma_client.get_or_create_collection(name="documents")
+
+def get_collection(session_id: str):
+    return chroma_client.get_or_create_collection(name=f"documents_{session_id}")
+
 
 def extract_text_from_PDF(file_bytes: bytes) -> str:
     doc = fitz.open(stream=file_bytes, filetype="pdf")
@@ -35,13 +38,13 @@ def break_down_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list
         end = start + chunk_size
         chunk = " ".join(words[start:end])
         chunks.append(chunk)
-
         start += chunk_size - overlap
 
     return chunks
 
 
-def process_pdf(file_bytes: bytes, filename: str) -> int:
+def process_pdf(file_bytes: bytes, filename: str, session_id: str) -> int:
+    collection = get_collection(session_id)
     rawText = extract_text_from_PDF(file_bytes)
     textChunks = break_down_text(rawText)
 
@@ -56,7 +59,8 @@ def process_pdf(file_bytes: bytes, filename: str) -> int:
 
     return len(textChunks)
 
-def query(question: str, top_k: int = 3) -> dict:
+def query(question: str, session_id: str, top_k: int = 3) -> dict:
+    collection = get_collection(session_id)
     question_vector = EMBED.encode([question]).tolist()
 
     # Cosine similarity search — returns the top_k most semantically similar chunks.
@@ -107,19 +111,21 @@ def query(question: str, top_k: int = 3) -> dict:
         "chunks_used": matched_chunks,
     }
 
-def clear_docs():
-    global collection
-    # ChromaDB has no truncate — delete and recreate is the only way to wipe all vectors.
-    chroma_client.delete_collection("documents")
-    collection = chroma_client.get_or_create_collection("documents")
-
-def doc_exists(filename: str) -> bool:
+def doc_exists(filename: str, session_id: str) -> bool:
+    collection = get_collection(session_id)
     if collection.count() == 0:
         return False
     result = collection.get(where={"source": filename})
     return len(result["ids"]) > 0
 
-def list_docs() -> list[str]:
+def clear_docs(session_id: str):
+    # ChromaDB has no truncate — delete and recreate is the only way to wipe all vectors.
+    collection_name = f"documents_{session_id}"
+    chroma_client.delete_collection(collection_name)
+    chroma_client.get_or_create_collection(collection_name)
+
+def list_docs(session_id: str) -> list[str]:
+    collection = get_collection(session_id)
     if collection.count() == 0:
         return []
     all_meta = collection.get(include=["metadatas"])["metadatas"]

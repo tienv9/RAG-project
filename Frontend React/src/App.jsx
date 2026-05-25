@@ -4,6 +4,19 @@ import ReactMarkdown from "react-markdown";
 
 const API = "http://localhost:8000";
 
+// Retrieve or create a persistent session ID so each browser gets its own
+// isolated document store on the server.
+
+//this can be a problem if edit session ID, extremely unlikely and wont need a fix this project
+const SESSION_ID = (() => {
+  let id = localStorage.getItem("rag_session_id");
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem("rag_session_id", id);
+  }
+  return id;
+})();
+
 const SUGGESTIONS = [
   "Summarize the main topics",
   "What are the key concepts?",
@@ -28,7 +41,7 @@ export default function App() {
   async function checkConnection() {
     setChecking(true);
     try {
-      const res = await fetch(`${API}/documents`);
+      const res = await fetch(`${API}/documents`, { headers: { "X-Session-ID": SESSION_ID } });
       const data = await res.json();
       setDocs(data.documents.map((name) => ({ name })));
       setConnected(true);
@@ -39,12 +52,12 @@ export default function App() {
     }
   }
 
-  // load existing documents on mount
+  // load existing documents on mount — also verifies this session ID has data on the server
   useEffect(() => {
     (async () => {
       setChecking(true);
       try {
-        const res = await fetch(`${API}/documents`);
+        const res = await fetch(`${API}/documents`, { headers: { "X-Session-ID": SESSION_ID } });
         const data = await res.json();
         setDocs(data.documents.map((name) => ({ name })));
         setConnected(true);
@@ -75,7 +88,7 @@ export default function App() {
     form.append("file", file);
 
     try {
-      const res = await fetch(`${API}/ingest`, { method: "POST", body: form });
+      const res = await fetch(`${API}/ingest`, { method: "POST", body: form, headers: { "X-Session-ID": SESSION_ID } });
       const data = await res.json();
 
       if (res.status === 409) {
@@ -111,7 +124,7 @@ export default function App() {
     try {
       const res = await fetch(`${API}/query`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Session-ID": SESSION_ID },
         body: JSON.stringify({ question: text, top_k: 3 }),
       });
       const data = await res.json();
@@ -140,7 +153,7 @@ export default function App() {
 
   async function clearDocs() {
     if (!confirm("Clear all documents?")) return;
-    await fetch(`${API}/documents`, { method: "DELETE" });
+    await fetch(`${API}/documents`, { method: "DELETE", headers: { "X-Session-ID": SESSION_ID } });
     setDocs([]);
     setMessages([]);
   }
