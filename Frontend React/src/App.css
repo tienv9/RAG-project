@@ -123,6 +123,12 @@ body {
   50% { opacity: .4; }
 }
 
+/* ── Scrollbar ── */
+.chat::-webkit-scrollbar { width: 6px; }
+.chat::-webkit-scrollbar-track { background: transparent; }
+.chat::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+.chat::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
 /* ── Chat ── */
 .chat {
   flex: 1;
