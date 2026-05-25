@@ -7,7 +7,4 @@
   <rect x="7" y="11" width="10" height="1.5" rx=".75" fill="white" fill-opacity=".55"/>
   <rect x="7" y="14.5" width="8" height="1.5" rx=".75" fill="white" fill-opacity=".55"/>
   <rect x="7" y="18" width="5.5" height="1.5" rx=".75" fill="white" fill-opacity=".55"/>
-  <!-- Chat bubble -->
-  <circle cx="24" cy="25" r="7" fill="#4fc48a"/>
-  <text x="24" y="29.5" text-anchor="middle" font-family="system-ui,sans-serif" font-size="11" font-weight="800" fill="white">?</text>
 </svg>
