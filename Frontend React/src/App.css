@@ -124,10 +124,21 @@ body {
 }
 
 /* ── Scrollbar ── */
-.chat::-webkit-scrollbar { width: 6px; }
-.chat::-webkit-scrollbar-track { background: transparent; }
-.chat::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
-.chat::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+.chat::-webkit-scrollbar,
+textarea::-webkit-scrollbar,
+.docs-popup-list::-webkit-scrollbar { width: 6px; }
+
+.chat::-webkit-scrollbar-track,
+textarea::-webkit-scrollbar-track,
+.docs-popup-list::-webkit-scrollbar-track { background: transparent; }
+
+.chat::-webkit-scrollbar-thumb,
+textarea::-webkit-scrollbar-thumb,
+.docs-popup-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+.chat::-webkit-scrollbar-thumb:hover,
+textarea::-webkit-scrollbar-thumb:hover,
+.docs-popup-list::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
 /* ── Chat ── */
 .chat {
