@@ -24,6 +24,7 @@ def extract_text_from_PDF(file_bytes: bytes) -> str:
 
     for page in doc:
         text += page.get_text()
+        # make url a separate chunk to allow llm to search for chunk
         links = [link["uri"] for link in page.get_links() if link.get("uri")]
         if links:
             text += "\nLinks on this page: " + ", ".join(links) + "\n"
@@ -47,12 +48,20 @@ def break_down_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list
 
 
 def process_pdf(file_bytes: bytes, filename: str, session_id: str) -> int:
+    """
+        1. Extract text
+        2. Split into chunks
+        3. Embed each chunk to vector
+        4. store vector in chromadb
+    This then return how many chunks were stored.
+    """
+    
     collection = get_collection(session_id)
     rawText = extract_text_from_PDF(file_bytes)
     textChunks = break_down_text(rawText)
 
     vectors = EMBED.encode(textChunks).tolist()
-
+    
     collection.add(
         documents=textChunks,
         embeddings=vectors,
@@ -63,9 +72,22 @@ def process_pdf(file_bytes: bytes, filename: str, session_id: str) -> int:
     return len(textChunks)
 
 def query_stream(question: str, session_id: str, top_k: int = 3):
+    """
+        1. Embed the question into a vector
+        2. Fetch top_k * 4 candidate chunks from ChromaDB by cosine similarity
+        3. Re-rank candidates with cross-encoder, keep top_k
+        4. Build context string from top chunks and send to LLM
+        5. Stream LLM response token by token
+        6. Yield a final done event with sources
+    """
+    
     collection = get_collection(session_id)
+
+    # Embed question into a vector so ChromaDB can compare it against stored chunk vectors
     question_vector = EMBED.encode([question]).tolist()
 
+    # Cast a wide net — fetch more candidates than needed so the re-ranker has room to work.
+    # min() guards against requesting more results than chunks that actually exist.
     candidate_count = min(top_k * 4, collection.count())
     results = collection.query(
         query_embeddings=question_vector,
@@ -75,13 +97,17 @@ def query_stream(question: str, session_id: str, top_k: int = 3):
     candidates = results["documents"][0]
     candidate_meta = results["metadatas"][0]
 
+    # Re-rank: cross-encoder reads each (question, chunk) pair together and scores relevance.
+    # More accurate than cosine similarity because it sees both texts at once instead of separately.
     pairs = [[question, chunk] for chunk in candidates]
     scores = RERANKER.predict(pairs)
 
+    # zip ties each score to its chunk and metadata, sort descending, then unpack top_k
     ranked = sorted(zip(scores, candidates, candidate_meta), key=lambda x: x[0], reverse=True)
     matched_chunks = [chunk for _, chunk, _ in ranked[:top_k]]
     matched_sources = [meta for _, _, meta in ranked[:top_k]]
 
+    # Label each chunk with its source file and position so the LLM can cite them
     context = "\n\n".join(
         [f"[Source: {m['source']} chunk {m['chunk_index']}]\n{chunk}"
          for chunk, m in zip(matched_chunks, matched_sources)]
@@ -117,6 +143,7 @@ def query_stream(question: str, session_id: str, top_k: int = 3):
 
 
 def doc_exists(filename: str, session_id: str) -> bool:
+    # check if it already exist inside the chromadb - this only compare name for now
     collection = get_collection(session_id)
     if collection.count() == 0:
         return False
@@ -130,6 +157,7 @@ def clear_docs(session_id: str):
     chroma_client.get_or_create_collection(collection_name)
 
 def list_docs(session_id: str) -> list[str]:
+    # get list of all documents 
     collection = get_collection(session_id)
     if collection.count() == 0:
         return []
