@@ -1,4 +1,5 @@
 import sys
+import numpy as np
 from unittest.mock import MagicMock
 import pytest # type: ignore
 
@@ -26,42 +27,39 @@ def reset_mocks():
 
 
 # ---------------------------------------------------------------------------
-# break_down_text — pure function, no mocks needed
+# semantic_chunk
 # ---------------------------------------------------------------------------
 
-class TestBreakDownText:
-    def test_basic_chunking(self):
-        words = [f"w{i}" for i in range(100)]
-        chunks = rag.break_down_text(" ".join(words), chunk_size=10, overlap=0)
-        assert len(chunks) == 10
-        assert chunks[0] == " ".join(words[:10])
-        assert chunks[-1] == " ".join(words[90:])
+class TestSemanticChunk:
+    def test_empty_text_returns_empty(self):
+        assert rag.semantic_chunk("") == []
 
-    def test_overlap_repeats_tail_words(self):
-        words = [f"w{i}" for i in range(20)]
-        chunks = rag.break_down_text(" ".join(words), chunk_size=10, overlap=2)
-        # stride = 10 - 2 = 8, so chunk[1] starts at word index 8
-        assert chunks[1].startswith("w8")
+    def test_single_sentence_returns_one_chunk(self, monkeypatch):
+        monkeypatch.setattr(rag.EMBED, "encode", lambda s: np.array([[1.0, 0.0]] * len(s)))
+        result = rag.semantic_chunk("Only one sentence here.")
+        assert len(result) == 1
+        assert isinstance(result[0], str)
 
-    def test_text_shorter_than_chunk_size(self):
-        chunks = rag.break_down_text("hello world", chunk_size=500, overlap=50)
-        assert chunks == ["hello world"]
+    def test_similar_sentences_stay_in_same_chunk(self, monkeypatch):
+        # identical vectors → similarity = 1.0 → never splits
+        monkeypatch.setattr(rag.EMBED, "encode", lambda s: np.array([[1.0, 0.0]] * len(s)))
+        result = rag.semantic_chunk("First sentence. Second sentence. Third sentence.")
+        assert len(result) == 1
 
-    def test_empty_text(self):
-        assert rag.break_down_text("") == []
+    def test_dissimilar_sentences_split_into_chunks(self, monkeypatch):
+        # orthogonal vectors → similarity = 0.0 → splits at every sentence boundary
+        def mock_encode(sentences):
+            vecs = [[1.0, 0.0], [0.0, 1.0]] * len(sentences)
+            return np.array(vecs[:len(sentences)])
+        monkeypatch.setattr(rag.EMBED, "encode", mock_encode)
+        long = ". ".join(["word " * 60] * 6) + "."
+        result = rag.semantic_chunk(long, min_words=50)
+        assert len(result) > 1
 
-    def test_text_exactly_chunk_size(self):
-        words = [f"w{i}" for i in range(10)]
-        chunks = rag.break_down_text(" ".join(words), chunk_size=10, overlap=0)
-        assert len(chunks) == 1
-        assert chunks[0] == " ".join(words)
-
-    def test_last_chunk_is_partial(self):
-        # 15 words, chunk_size=10, overlap=0 → two chunks: 10 words + 5 words
-        words = [f"w{i}" for i in range(15)]
-        chunks = rag.break_down_text(" ".join(words), chunk_size=10, overlap=0)
-        assert len(chunks) == 2
-        assert chunks[1] == " ".join(words[10:])
+    def test_all_chunks_are_strings(self, monkeypatch):
+        monkeypatch.setattr(rag.EMBED, "encode", lambda s: np.array([[1.0, 0.0]] * len(s)))
+        result = rag.semantic_chunk("One. Two. Three.")
+        assert all(isinstance(c, str) for c in result)
 
 
 # ---------------------------------------------------------------------------
@@ -89,7 +87,7 @@ class TestExtractTextFromPDF:
     def test_passes_bytes_and_filetype(self):
         _mock_fitz.open.return_value = []
         rag.extract_text_from_PDF(b"data")
-        _mock_fitz.open.assert_called_once_with(b"data", filetype="pdf")
+        _mock_fitz.open.assert_called_once_with(stream=b"data", filetype="pdf")
 
 
 # ---------------------------------------------------------------------------
@@ -103,19 +101,19 @@ class TestProcessPDF:
     def test_returns_chunk_count(self, monkeypatch):
         chunks = ["chunk1", "chunk2", "chunk3"]
         monkeypatch.setattr(rag, "extract_text_from_PDF", lambda b: "text")
-        monkeypatch.setattr(rag, "break_down_text", lambda t, **kw: chunks)
+        monkeypatch.setattr(rag, "semantic_chunk", lambda t, **kw: chunks)
         self._setup_encode([[0.1] * 384] * 3)
 
-        assert rag.process_pdf(b"pdf", "doc.pdf") == 3
+        assert rag.process_pdf(b"pdf", "doc.pdf", "session-123") == 3
 
     def test_adds_correct_documents_and_ids(self, monkeypatch):
         chunks = ["chunk A", "chunk B"]
         vectors = [[0.1] * 384, [0.2] * 384]
         monkeypatch.setattr(rag, "extract_text_from_PDF", lambda b: "text")
-        monkeypatch.setattr(rag, "break_down_text", lambda t, **kw: chunks)
+        monkeypatch.setattr(rag, "semantic_chunk", lambda t, **kw: chunks)
         self._setup_encode(vectors)
 
-        rag.process_pdf(b"pdf", "doc.pdf")
+        rag.process_pdf(b"pdf", "doc.pdf", "session-123")
 
         kwargs = _mock_collection.add.call_args.kwargs
         assert kwargs["documents"] == chunks
@@ -125,34 +123,34 @@ class TestProcessPDF:
     def test_metadata_includes_source_and_chunk_index(self, monkeypatch):
         chunks = ["only chunk"]
         monkeypatch.setattr(rag, "extract_text_from_PDF", lambda b: "text")
-        monkeypatch.setattr(rag, "break_down_text", lambda t, **kw: chunks)
+        monkeypatch.setattr(rag, "semantic_chunk", lambda t, **kw: chunks)
         self._setup_encode([[0.0] * 384])
 
-        rag.process_pdf(b"pdf", "paper.pdf")
+        rag.process_pdf(b"pdf", "paper.pdf", "session-123")
 
         meta = _mock_collection.add.call_args.kwargs["metadatas"]
         assert meta == [{"source": "paper.pdf", "chunk_index": 0}]
 
 
 # ---------------------------------------------------------------------------
-# clear_doc
+# clear_docs
 # ---------------------------------------------------------------------------
 
-class TestClearDoc:
+class TestClearDocs:
     def test_deletes_then_recreates_collection(self):
-        rag.clear_doc()
-        _mock_chroma_client.delete_collection.assert_called_once_with("documents")
-        _mock_chroma_client.get_or_create_collection.assert_called_with("documents")
+        rag.clear_docs("session-123")
+        _mock_chroma_client.delete_collection.assert_called_once_with("documents_session-123")
+        _mock_chroma_client.get_or_create_collection.assert_called_with("documents_session-123")
 
 
 # ---------------------------------------------------------------------------
-# list_doc
+# list_docs
 # ---------------------------------------------------------------------------
 
-class TestListDoc:
+class TestListDocs:
     def test_returns_empty_list_when_no_documents(self):
         _mock_collection.count.return_value = 0
-        assert rag.list_doc() == []
+        assert rag.list_docs("session-123") == []
 
     def test_returns_unique_filenames(self):
         _mock_collection.count.return_value = 3
@@ -163,9 +161,9 @@ class TestListDoc:
                 {"source": "b.pdf", "chunk_index": 0},
             ]
         }
-        assert sorted(rag.list_doc()) == ["a.pdf", "b.pdf"]
+        assert sorted(rag.list_docs("session-123")) == ["a.pdf", "b.pdf"]
 
     def test_does_not_query_collection_when_empty(self):
         _mock_collection.count.return_value = 0
-        rag.list_doc()
+        rag.list_docs("session-123")
         _mock_collection.get.assert_not_called()
