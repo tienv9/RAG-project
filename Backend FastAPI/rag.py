@@ -111,7 +111,7 @@ def query_stream(question: str, session_id: str, top_k: int = 3):
     sources = list({m["source"] for m in matched_sources})
 
     for chunk in ollama.generate(model=OLLAMA_MODEL, prompt=prompt, stream=True):
-        yield {"type": "token", "content": chunk["response"]}
+        yield {"type": "token", "content": chunk.response}
 
     yield {"type": "done", "sources": sources, "chunks_used": matched_chunks}
 

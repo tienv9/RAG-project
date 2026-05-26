@@ -61,10 +61,10 @@ export default function ChatInput({ question, setQuestion, docs, loading, onAsk,
       </div>
       <button
         className={`send-btn${loading ? " send-btn--stop" : ""}`}
-        onClick={loading ? onAbort : onAsk}
+        onClick={loading ? onAbort : () => onAsk()}
         disabled={loading ? false : (!question.trim() || docs.length === 0)}
       >
-        {loading ? "■" : "↑"}
+        {loading ? "●" : "↑"}
       </button>
     </div>
   );

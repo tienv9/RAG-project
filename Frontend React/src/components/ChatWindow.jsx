@@ -78,7 +78,7 @@ export default function ChatWindow({ messages, loading, streaming, docs, uploadi
         <>
           {messages.map((msg, i) => (
             <div key={i} className={`message ${msg.role}`}>
-              <div className="bubble"><ReactMarkdown>{msg.content}</ReactMarkdown></div>
+              <div className="bubble"><ReactMarkdown>{typeof msg.content === "string" ? msg.content : ""}</ReactMarkdown></div>
               {msg.sources && msg.sources.length > 0 && (
                 <div className="sources">
                   {msg.sources.map((s) => (
