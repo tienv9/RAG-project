@@ -1,8 +1,16 @@
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 
 export default function ChatInput({ question, setQuestion, docs, loading, onAsk, onAbort }) {
   const textareaRef = useRef(null);
   const [showDocs, setShowDocs] = useState(false);
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.overflow = "hidden";
+    el.style.height = "0";
+    el.style.height = el.scrollHeight + "px";
+    el.style.overflow = el.scrollHeight > 144 ? "auto" : "hidden";
+  }, [question]);
 
   function onKeyDown(e) {
     if (e.key === "Enter" && !e.shiftKey) {

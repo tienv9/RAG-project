@@ -382,7 +382,8 @@ textarea::-webkit-scrollbar-thumb:hover,
 .input-wrap:focus-within { border-color: var(--accent); }
 
 textarea {
-  flex: 1;
+  flex: none;
+  width: 100%;
   background: transparent;
   border: none;
   outline: none;
@@ -392,14 +393,17 @@ textarea {
   line-height: 1.5;
   padding: 8px 12px;
   resize: none;
-  max-height: 120px;
-  min-height: 40px;
+  max-height: 144px;
+  overflow-y: hidden;
 }
 
 textarea::placeholder { color: var(--muted); }
 
 .send-btn {
-  width: auto; height: auto; aspect-ratio: 1;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  align-self: center;
   background: var(--accent);
   border: none;
   border-radius: 8px;
@@ -408,7 +412,6 @@ textarea::placeholder { color: var(--muted); }
   display: grid;
   place-items: center;
   font-size: 16px;
-  flex-shrink: 0;
   transition: opacity .2s, transform .1s;
 }
 
