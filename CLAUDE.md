@@ -16,6 +16,11 @@ and ask questions about it. Answers are grounded in the document with source cit
 3. Store vector + original text in ChromaDB under a per-session collection
 4. At query time: embed the question → fetch top-12 candidate chunks by cosine similarity → re-rank with cross-encoder → top 3 go into LLM prompt → stream answer back token by token
 
+Chunking insight: fixed word-count splitting cuts mid-sentence and mid-idea. Semantic chunking
+embeds every sentence, computes cosine similarity between consecutive pairs, and splits where
+similarity drops below 0.5 (topic shift). Chunks under 50 words get merged into their neighbor;
+chunks over 500 words fall back to word-count splitting.
+
 Key insight: similar meaning = close vectors. "cat" and "feline" end up near each other
 in vector space because the embedding model learned this from billions of sentences.
 
@@ -26,6 +31,7 @@ much more accurately. Use bi-encoder to cast a wide net, cross-encoder to pick t
 ## Current stack
 - **Embeddings**: `all-MiniLM-L6-v2` (HuggingFace, free, 80MB, runs on CPU)
 - **Re-ranker**: `cross-encoder/ms-marco-MiniLM-L-6-v2` (HuggingFace, free, CPU)
+- **Chunking**: semantic — sentence embeddings + cosine similarity to detect topic shifts (`threshold=0.5`, `min_words=50`, `max_words=500`)
 - **LLM**: Ollama — `llama3.2` (local, free, change `OLLAMA_MODEL` in `rag.py` to swap models)
 - **Vector DB**: ChromaDB (local, persistent, per-session collections)
 - **API**: FastAPI (Python), streaming via `StreamingResponse` + SSE
@@ -36,7 +42,7 @@ much more accurately. Use bi-encoder to cast a wide net, cross-encoder to pick t
 ```
 rag-app/
 ├── Backend FastAPI/
-│   ├── rag.py           # core pipeline: process_pdf(), query_stream(), break_down_text(), doc_exists()
+│   ├── rag.py           # core pipeline: process_pdf(), query_stream(), semantic_chunk(), doc_exists()
 │   ├── main.py          # FastAPI server, 4 endpoints, X-Session-ID header on all routes
 │   └── requirements.txt
 ├── Frontend React/
@@ -144,7 +150,7 @@ Dockerfile.frontend    # node build stage → nginx serve stage
 - Total: ~**$33/month**, or ~$20/month with a 1-year reserved instance
 
 ## Planned improvements (v2)
-- Semantic chunking instead of fixed word count
+- Better sentence boundary detection (spaCy handles abbreviations like "Mr." better than regex)
 - Source citations with page numbers
 - ChromaDB stays for prod (persisted on EBS volume) — RDS/pgvector ruled out, cost too high
 - Evaluation metrics — check if answers are grounded in retrieved context
