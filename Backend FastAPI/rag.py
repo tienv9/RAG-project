@@ -1,6 +1,8 @@
+import re
 import fitz # type: ignore
 import chromadb # type: ignore
 import ollama # type: ignore
+import numpy as np # type: ignore
 from sentence_transformers import SentenceTransformer, CrossEncoder # type: ignore
 
 OLLAMA_MODEL = "llama3.2"  # change to any model you have pulled locally
@@ -47,6 +49,70 @@ def break_down_text(text: str, chunk_size: int = 500, overlap: int = 50) -> list
     return chunks
 
 
+def semantic_chunk(text: str, threshold: float = 0.5, max_words: int = 500, min_words: int = 50) -> list[str]:
+    """
+        1. Split text into sentences
+        2. Embed all sentences in one batch
+        3. Compute cosine similarity between consecutive sentence embeddings
+        4. Start a new chunk where similarity drops below threshold (topic shift)
+        5. Merge chunks that are too small into their neighbor
+        6. Split chunks that are too large by word count
+        
+        This can break since with regex split limitation on thing like e.g. or number in text,
+        may also miss context if the context stay on previous chunk like the question is on the paragraph before it.
+        the 0.5 threshold is a pure guess, would need extensive testing to find perfect threshold for specific type of doc
+        
+    """
+    # Split using regex on . ! ? followed by whitespace
+    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
+    sentences = [s.strip() for s in sentences if s.strip()]
+
+    if not sentences:
+        return []
+
+    embeddings = EMBED.encode(sentences)
+
+    # compare each sentence to the next one to find where the topic changes
+    raw_chunks = []
+    current = [sentences[0]]
+
+    for i in range(1, len(sentences)):
+        a, b = embeddings[i - 1], embeddings[i]
+        sim = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+        if sim < threshold: # topic changed so save the current chunk and start a new one
+            raw_chunks.append(" ".join(current))
+            current = [sentences[i]]
+        else:
+            current.append(sentences[i])
+    raw_chunks.append(" ".join(current))
+
+    # when similarity drops below 0.5, merge sentence into a new chunk to avoid orphan sentences
+    merged = []
+    buffer = ""
+    for chunk in raw_chunks:
+        buffer = (buffer + " " + chunk).strip() if buffer else chunk
+        if len(buffer.split()) >= min_words:
+            merged.append(buffer)
+            buffer = ""
+    if buffer:
+        if merged:
+            merged[-1] += " " + buffer
+        else:
+            merged.append(buffer)
+
+    # Split any chunk that exceeded max_words back down by word count
+    final = []
+    for chunk in merged:
+        words = chunk.split()
+        if len(words) > max_words:
+            for i in range(0, len(words), max_words):
+                final.append(" ".join(words[i:i + max_words]))
+        else:
+            final.append(chunk)
+
+    return final
+
+
 def process_pdf(file_bytes: bytes, filename: str, session_id: str) -> int:
     """
         1. Extract text
@@ -58,7 +124,7 @@ def process_pdf(file_bytes: bytes, filename: str, session_id: str) -> int:
     
     collection = get_collection(session_id)
     rawText = extract_text_from_PDF(file_bytes)
-    textChunks = break_down_text(rawText)
+    textChunks = semantic_chunk(rawText)
 
     vectors = EMBED.encode(textChunks).tolist()
     
@@ -83,11 +149,11 @@ def query_stream(question: str, session_id: str, top_k: int = 3):
     
     collection = get_collection(session_id)
 
-    # Embed question into a vector so ChromaDB can compare it against stored chunk vectors
+    # turn the question into a vector so chromadb can compare it to the stored chunks
     question_vector = EMBED.encode([question]).tolist()
 
-    # Cast a wide net — fetch more candidates than needed so the re-ranker has room to work.
-    # min() guards against requesting more results than chunks that actually exist.
+    # grab more chunks than needed so the re-ranker can pick the best ones
+    # min() avoids asking for more chunks than what actually exists in the collection
     candidate_count = min(top_k * 4, collection.count())
     results = collection.query(
         query_embeddings=question_vector,
@@ -97,17 +163,16 @@ def query_stream(question: str, session_id: str, top_k: int = 3):
     candidates = results["documents"][0]
     candidate_meta = results["metadatas"][0]
 
-    # Re-rank: cross-encoder reads each (question, chunk) pair together and scores relevance.
-    # More accurate than cosine similarity because it sees both texts at once instead of separately.
+    # score each chunk against the question to find which ones actually answer it
     pairs = [[question, chunk] for chunk in candidates]
     scores = RERANKER.predict(pairs)
 
-    # zip ties each score to its chunk and metadata, sort descending, then unpack top_k
+    # sort by score and take the top chunks with their matching metadata
     ranked = sorted(zip(scores, candidates, candidate_meta), key=lambda x: x[0], reverse=True)
     matched_chunks = [chunk for _, chunk, _ in ranked[:top_k]]
     matched_sources = [meta for _, _, meta in ranked[:top_k]]
 
-    # Label each chunk with its source file and position so the LLM can cite them
+    # attach the source file and chunk number to each chunk so the llm knows where it came from
     context = "\n\n".join(
         [f"[Source: {m['source']} chunk {m['chunk_index']}]\n{chunk}"
          for chunk, m in zip(matched_chunks, matched_sources)]
