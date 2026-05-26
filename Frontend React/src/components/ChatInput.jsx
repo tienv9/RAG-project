@@ -1,7 +1,8 @@
-import { useRef } from "react";
+import { useRef, useState } from "react";
 
 export default function ChatInput({ question, setQuestion, docs, loading, onAsk, onAbort }) {
   const textareaRef = useRef(null);
+  const [showDocs, setShowDocs] = useState(false);
 
   function onKeyDown(e) {
     if (e.key === "Enter" && !e.shiftKey) {
@@ -13,6 +14,34 @@ export default function ChatInput({ question, setQuestion, docs, loading, onAsk,
 
   return (
     <div className="input-area">
+      <div className="docs-btn-wrap">
+        <button
+          className="docs-toggle-btn"
+          onClick={() => setShowDocs((v) => !v)}
+          title="View uploaded documents"
+        >
+          ☰
+        </button>
+        {showDocs && (
+          <div className="docs-popup">
+            <div className="docs-popup-header">
+              <span>Uploaded PDFs</span>
+              <button className="docs-popup-close" onClick={() => setShowDocs(false)}>✕</button>
+            </div>
+            <div className="docs-popup-list">
+              {docs.length === 0 ? (
+                <p className="docs-popup-empty">No documents uploaded yet.</p>
+              ) : (
+                docs.map((doc) => (
+                  <div key={doc.name} className="docs-popup-item">
+                    <span className="docs-popup-name">{doc.name}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
       <div className="input-wrap">
         <textarea
           ref={textareaRef}
@@ -40,3 +69,4 @@ export default function ChatInput({ question, setQuestion, docs, loading, onAsk,
     </div>
   );
 }
+
