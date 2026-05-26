@@ -8,7 +8,7 @@ const SUGGESTIONS = [
   "What should I focus on?",
 ];
 
-export default function ChatWindow({ messages, loading, docs, uploading, dragging, onUploadFile, onSetDragging, onAsk }) {
+export default function ChatWindow({ messages, loading, streaming, docs, uploading, dragging, onUploadFile, onSetDragging, onAsk }) {
   const chatRef = useRef(null);
 
   useEffect(() => {
@@ -88,7 +88,7 @@ export default function ChatWindow({ messages, loading, docs, uploading, draggin
               )}
             </div>
           ))}
-          {loading && (
+          {loading && !streaming && (
             <div className="message assistant">
               <div className="thinking">
                 <div className="dots">

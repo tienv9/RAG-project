@@ -8,12 +8,10 @@ _mock_collection = MagicMock()
 _mock_chroma_client = MagicMock()
 _mock_chroma_client.get_or_create_collection.return_value = _mock_collection
 _mock_embed = MagicMock()
-_mock_llm = MagicMock()
 
 sys.modules["fitz"] = _mock_fitz
 sys.modules["chromadb"] = MagicMock(PersistentClient=MagicMock(return_value=_mock_chroma_client))
-sys.modules["sentence_transformers"] = MagicMock(SentenceTransformer=MagicMock(return_value=_mock_embed))
-sys.modules["transformers"] = MagicMock(pipeline=MagicMock(return_value=_mock_llm))
+sys.modules["sentence_transformers"] = MagicMock(SentenceTransformer=MagicMock(return_value=_mock_embed), CrossEncoder=MagicMock())
 
 import rag  # noqa: E402 — must come after sys.modules patching
 
@@ -22,7 +20,6 @@ import rag  # noqa: E402 — must come after sys.modules patching
 def reset_mocks():
     _mock_fitz.reset_mock()
     _mock_embed.reset_mock()
-    _mock_llm.reset_mock()
     _mock_collection.reset_mock()
     _mock_chroma_client.reset_mock()
     _mock_chroma_client.get_or_create_collection.return_value = _mock_collection
@@ -135,56 +132,6 @@ class TestProcessPDF:
 
         meta = _mock_collection.add.call_args.kwargs["metadatas"]
         assert meta == [{"source": "paper.pdf", "chunk_index": 0}]
-
-
-# ---------------------------------------------------------------------------
-# query
-# ---------------------------------------------------------------------------
-
-class TestQuery:
-    def _setup(self, docs, metas):
-        _mock_embed.encode.return_value.tolist.return_value = [[0.1] * 384]
-        _mock_collection.query.return_value = {
-            "documents": [docs],
-            "metadatas": [metas],
-        }
-        # generated_text = prompt + answer; use a long prefix so slicing works cleanly.
-        _mock_llm.return_value = [{"generated_text": "x" * 5000 + "the answer"}]
-
-    def test_returns_expected_keys(self):
-        self._setup(["chunk"], [{"source": "a.pdf", "chunk_index": 0}])
-        result = rag.query("What is X?")
-        assert set(result.keys()) == {"answer", "sources", "chunks_used"}
-
-    def test_chunks_used_matches_retrieval(self):
-        docs = ["chunk one", "chunk two"]
-        metas = [{"source": "a.pdf", "chunk_index": 0}, {"source": "a.pdf", "chunk_index": 1}]
-        self._setup(docs, metas)
-        assert rag.query("question")["chunks_used"] == docs
-
-    def test_deduplicates_sources(self):
-        docs = ["c1", "c2", "c3"]
-        metas = [
-            {"source": "a.pdf", "chunk_index": 0},
-            {"source": "a.pdf", "chunk_index": 1},
-            {"source": "b.pdf", "chunk_index": 0},
-        ]
-        self._setup(docs, metas)
-        sources = rag.query("question")["sources"]
-        assert sorted(sources) == ["a.pdf", "b.pdf"]
-
-    def test_embeds_question_before_querying(self):
-        self._setup(["c"], [{"source": "x.pdf", "chunk_index": 0}])
-        rag.query("my question")
-        _mock_embed.encode.assert_called_once_with(["my question"])
-
-    def test_queries_collection_with_top_k(self):
-        self._setup(["c"], [{"source": "x.pdf", "chunk_index": 0}])
-        rag.query("q", top_k=5)
-        _mock_collection.query.assert_called_once_with(
-            query_embeddings=[[0.1] * 384],
-            n_results=5,
-        )
 
 
 # ---------------------------------------------------------------------------

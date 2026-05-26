@@ -1,7 +1,9 @@
+import json
 from fastapi import FastAPI, UploadFile, File, HTTPException, Header # type: ignore
 from fastapi.middleware.cors import CORSMiddleware # type: ignore
+from fastapi.responses import StreamingResponse # type: ignore
 from pydantic import BaseModel # type: ignore
-from rag import process_pdf, query, list_docs, clear_docs, doc_exists
+from rag import process_pdf, query_stream, list_docs, clear_docs, doc_exists
 
 app = FastAPI(title="RAG Assistant")
 
@@ -19,12 +21,6 @@ app.add_middleware(
 class QueryRequest(BaseModel):
     question: str
     top_k: int = 3   # how many chunks to retrieve
-
-class QueryResponse(BaseModel):
-    answer: str
-    sources: list[str]
-    chunks_used: list[str]
-
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
@@ -54,13 +50,16 @@ async def ingest(
     }
 
 
-@app.post("/query", response_model=QueryResponse)
-def ask(request: QueryRequest, x_session_id: str = Header(...)):
+@app.post("/query/stream")
+def ask_stream(request: QueryRequest, x_session_id: str = Header(...)):
     if not request.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty.")
 
-    result = query(request.question, x_session_id, top_k=request.top_k)
-    return result
+    def generate():
+        for event in query_stream(request.question, x_session_id, top_k=request.top_k):
+            yield f"data: {json.dumps(event)}\n\n"
+
+    return StreamingResponse(generate(), media_type="text/event-stream")
 
 
 @app.get("/documents")

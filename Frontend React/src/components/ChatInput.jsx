@@ -1,12 +1,13 @@
 import { useRef } from "react";
 
-export default function ChatInput({ question, setQuestion, docs, loading, onAsk }) {
+export default function ChatInput({ question, setQuestion, docs, loading, onAsk, onAbort }) {
   const textareaRef = useRef(null);
 
   function onKeyDown(e) {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      onAsk();
+      if (loading) onAbort();
+      else onAsk();
     }
   }
 
@@ -30,11 +31,11 @@ export default function ChatInput({ question, setQuestion, docs, loading, onAsk 
         )}
       </div>
       <button
-        className="send-btn"
-        onClick={onAsk}
-        disabled={!question.trim() || loading || docs.length === 0}
+        className={`send-btn${loading ? " send-btn--stop" : ""}`}
+        onClick={loading ? onAbort : onAsk}
+        disabled={loading ? false : (!question.trim() || docs.length === 0)}
       >
-        ↑
+        {loading ? "■" : "↑"}
       </button>
     </div>
   );

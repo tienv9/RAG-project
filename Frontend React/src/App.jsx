@@ -1,9 +1,9 @@
 import "./App.css";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import TopBar from "./components/TopBar";
 import ChatWindow from "./components/ChatWindow";
 import ChatInput from "./components/ChatInput";
-import { fetchDocuments, ingestFile, queryDocuments, deleteDocuments } from "./api";
+import { fetchDocuments, ingestFile, queryDocumentsStream, deleteDocuments } from "./api";
 
 //this can be a problem if edit session ID, extremely unlikely and wont need a fix this project
 const SESSION_ID = (() => {
@@ -20,6 +20,8 @@ export default function App() {
   const [question, setQuestion] = useState("");
   const [docs, setDocs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [streaming, setStreaming] = useState(false);
+  const abortRef = useRef(null);
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [connected, setConnected] = useState(false);
@@ -95,25 +97,58 @@ export default function App() {
     setMessages((prev) => [...prev, { role: "user", content: text }]);
     setQuestion("");
     setLoading(true);
+    setStreaming(false);
+
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
-      const data = await queryDocuments(text, 3, SESSION_ID);
-      setMessages((prev) => [
-        ...prev,
-        { role: "assistant", content: data.answer, sources: data.sources },
-      ]);
-    } catch {
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: "Could not reach the backend. Make sure the FastAPI server is running on port 8000.",
-          sources: [],
+      let firstToken = true;
+      await queryDocumentsStream(text, 3, SESSION_ID, {
+        onToken(token) {
+          if (firstToken) {
+            firstToken = false;
+            setStreaming(true);
+            setMessages((prev) => [...prev, { role: "assistant", content: token, sources: [] }]);
+          } else {
+            setMessages((prev) => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              updated[updated.length - 1] = { ...last, content: last.content + token };
+              return updated;
+            });
+          }
         },
-      ]);
+        onDone({ sources }) {
+          setMessages((prev) => {
+            const updated = [...prev];
+            const last = updated[updated.length - 1];
+            updated[updated.length - 1] = { ...last, sources };
+            return updated;
+          });
+        },
+        signal: controller.signal,
+      });
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "assistant",
+            content: "Could not reach the backend. Make sure the FastAPI server is running on port 8000.",
+            sources: [],
+          },
+        ]);
+      }
     } finally {
+      abortRef.current = null;
       setLoading(false);
+      setStreaming(false);
     }
+  }
+
+  function abort() {
+    abortRef.current?.abort();
   }
 
   async function clearDocs() {
@@ -138,6 +173,7 @@ export default function App() {
         <ChatWindow
           messages={messages}
           loading={loading}
+          streaming={streaming}
           docs={docs}
           uploading={uploading}
           dragging={dragging}
@@ -151,6 +187,7 @@ export default function App() {
           docs={docs}
           loading={loading}
           onAsk={ask}
+          onAbort={abort}
         />
       </main>
 

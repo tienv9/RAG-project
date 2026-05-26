@@ -405,6 +405,14 @@ textarea::placeholder { color: var(--muted); }
 .send-btn:active { transform: scale(.95); }
 .send-btn:disabled { opacity: .35; cursor: not-allowed; }
 
+.send-btn--stop {
+  background: var(--surface2);
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  font-size: 12px;
+}
+.send-btn--stop:hover { opacity: 1; background: rgba(250,109,109,.12); }
+
 .toast {
   position: fixed;
   top: 5rem;

@@ -1,12 +1,15 @@
 import fitz # type: ignore
 import chromadb # type: ignore
 import ollama # type: ignore
-from sentence_transformers import SentenceTransformer # type: ignore
+from sentence_transformers import SentenceTransformer, CrossEncoder # type: ignore
 
 OLLAMA_MODEL = "llama3.2"  # change to any model you have pulled locally
 
 # 384-dim embeddings, free, CPU-friendly. Upgrade to text-embedding-3-small (OpenAI) for better recall.
 EMBED = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+
+# Cross-encoder re-ranks candidate chunks by reading question+chunk together — more accurate than cosine similarity alone.
+RERANKER = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
 
 # ChromaDB persists vectors to disk so re-ingesting on every restart isn't needed.
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
@@ -59,20 +62,26 @@ def process_pdf(file_bytes: bytes, filename: str, session_id: str) -> int:
 
     return len(textChunks)
 
-def query(question: str, session_id: str, top_k: int = 3) -> dict:
+def query_stream(question: str, session_id: str, top_k: int = 3):
     collection = get_collection(session_id)
     question_vector = EMBED.encode([question]).tolist()
 
-    # Cosine similarity search — returns the top_k most semantically similar chunks.
+    candidate_count = min(top_k * 4, collection.count())
     results = collection.query(
         query_embeddings=question_vector,
-        n_results=top_k,
+        n_results=candidate_count,
     )
 
-    matched_chunks = results["documents"][0]
-    matched_sources = results["metadatas"][0]
+    candidates = results["documents"][0]
+    candidate_meta = results["metadatas"][0]
 
-    # Pack retrieved chunks into a labeled context block for the LLM prompt.
+    pairs = [[question, chunk] for chunk in candidates]
+    scores = RERANKER.predict(pairs)
+
+    ranked = sorted(zip(scores, candidates, candidate_meta), key=lambda x: x[0], reverse=True)
+    matched_chunks = [chunk for _, chunk, _ in ranked[:top_k]]
+    matched_sources = [meta for _, _, meta in ranked[:top_k]]
+
     context = "\n\n".join(
         [f"[Source: {m['source']} chunk {m['chunk_index']}]\n{chunk}"
          for chunk, m in zip(matched_chunks, matched_sources)]
@@ -99,17 +108,13 @@ def query(question: str, session_id: str, top_k: int = 3) -> dict:
 
                 '''
 
-    response = ollama.generate(model=OLLAMA_MODEL, prompt=prompt)
-    answer = response["response"].strip()
-
-    # Deduplicate sources — same file may appear across multiple matched chunks.
     sources = list({m["source"] for m in matched_sources})
 
-    return {
-        "answer": answer,
-        "sources": sources,
-        "chunks_used": matched_chunks,
-    }
+    for chunk in ollama.generate(model=OLLAMA_MODEL, prompt=prompt, stream=True):
+        yield {"type": "token", "content": chunk["response"]}
+
+    yield {"type": "done", "sources": sources, "chunks_used": matched_chunks}
+
 
 def doc_exists(filename: str, session_id: str) -> bool:
     collection = get_collection(session_id)
