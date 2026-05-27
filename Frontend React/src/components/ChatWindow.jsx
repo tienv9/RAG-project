@@ -1,4 +1,4 @@
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import ReactMarkdown from "react-markdown";
 
 const SUGGESTIONS = [
@@ -8,8 +8,9 @@ const SUGGESTIONS = [
   "What should I focus on?",
 ];
 
-export default function ChatWindow({ messages, loading, streaming, docs, uploading, dragging, onUploadFile, onSetDragging, onAsk }) {
+export default function ChatWindow({ messages, loading, streaming, docs, uploading, onUploadFile, onAsk }) {
   const chatRef = useRef(null);
+  const [dragging, setDragging] = useState(false);
 
   useEffect(() => {
     if (chatRef.current) {
@@ -30,11 +31,11 @@ export default function ChatWindow({ messages, loading, streaming, docs, uploadi
 
           <div
             className={`upload-zone ${dragging ? "dragging" : ""} ${uploading ? "uploading" : ""}`}
-            onDragOver={(e) => { e.preventDefault(); onSetDragging(true); }}
-            onDragLeave={() => onSetDragging(false)}
+            onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
             onDrop={(e) => {
               e.preventDefault();
-              onSetDragging(false);
+              setDragging(false);
               onUploadFile(e.dataTransfer.files[0]);
             }}
           >

@@ -18,15 +18,6 @@ export async function ingestFile(file, sessionId) {
   return { ok: res.ok, status: res.status, data: await res.json() };
 }
 
-export async function queryDocuments(question, topK, sessionId) {
-  const res = await fetch(`${API}/query`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Session-ID": sessionId },
-    body: JSON.stringify({ question, top_k: topK }),
-  });
-  return res.json();
-}
-
 export async function queryDocumentsStream(question, topK, sessionId, { onToken, onDone, signal }) {
   const res = await fetch(`${API}/query/stream`, {
     method: "POST",

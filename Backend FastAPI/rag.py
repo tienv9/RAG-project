@@ -111,12 +111,13 @@ def process_pdf(file_bytes: bytes, filename: str, session_id: str) -> int:
     textChunks = semantic_chunk(rawText)
 
     vectors = EMBED.encode(textChunks).tolist()
-    
+    indexed = list(enumerate(textChunks))
+
     collection.add(
         documents=textChunks,
         embeddings=vectors,
-        metadatas=[{"source": filename, "chunk_index": i} for i, _ in enumerate(textChunks)],
-        ids=[f"{filename}_chunk_{i}" for i, _ in enumerate(textChunks)],
+        metadatas=[{"source": filename, "chunk_index": i} for i, _ in indexed],
+        ids=[f"{filename}_chunk_{i}" for i, _ in indexed],
     )
 
     return len(textChunks)
@@ -162,33 +163,26 @@ def query_stream(question: str, session_id: str, top_k: int = 3):
          for chunk, m in zip(matched_chunks, matched_sources)]
     )
 
-    prompt = f'''
-                You are a retrieval-augmented assistant.
-                Answer the user's question using ONLY the provided context.
-
-                Rules:
-                - Do not use outside knowledge.
-                - If the context does not contain enough information, say: "I don't have enough information to answer that."
-                - Do not fabricate facts or details.
-                - Ignore irrelevant context.
-                - Keep the answer concise and accurate.
-
-                Context:
-                {context}
-
-                Question:
-                {question}
-
-                Answer:
-
-                '''
+    prompt = (
+        "You are a retrieval-augmented assistant.\n"
+        "Answer the user's question using ONLY the provided context.\n\n"
+        "Rules:\n"
+        "- Do not use outside knowledge.\n"
+        "- If the context does not contain enough information, say: \"I don't have enough information to answer that.\"\n"
+        "- Do not fabricate facts or details.\n"
+        "- Ignore irrelevant context.\n"
+        "- Keep the answer concise and accurate.\n\n"
+        f"Context:\n{context}\n\n"
+        f"Question:\n{question}\n\n"
+        "Answer:\n"
+    )
 
     sources = list({m["source"] for m in matched_sources})
 
     for chunk in ollama.generate(model=OLLAMA_MODEL, prompt=prompt, stream=True):
         yield {"type": "token", "content": chunk.response}
 
-    yield {"type": "done", "sources": sources, "chunks_used": matched_chunks}
+    yield {"type": "done", "sources": sources}
 
 
 def doc_exists(filename: str, session_id: str) -> bool:

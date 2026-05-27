@@ -23,10 +23,14 @@ export default function App() {
   const [streaming, setStreaming] = useState(false);
   const abortRef = useRef(null);
   const [uploading, setUploading] = useState(false);
-  const [dragging, setDragging] = useState(false);
   const [connected, setConnected] = useState(false);
   const [checking, setChecking] = useState(false);
   const [uploadMsg, setUploadMsg] = useState(null); // { type: "error"|"success", text }
+
+  function showMsg(type, text) {
+    setUploadMsg({ type, text });
+    setTimeout(() => setUploadMsg(null), 2000);
+  }
 
   async function checkConnection() {
     setChecking(true);
@@ -41,20 +45,7 @@ export default function App() {
     }
   }
 
-  useEffect(() => {
-    (async () => {
-      setChecking(true);
-      try {
-        const data = await fetchDocuments(SESSION_ID);
-        setDocs(data.documents.map((name) => ({ name })));
-        setConnected(true);
-      } catch {
-        setConnected(false);
-      } finally {
-        setChecking(false);
-      }
-    })();
-  }, []);
+  useEffect(() => { checkConnection(); }, []);
 
   async function uploadFile(file) {
     if (!file || !file.name.endsWith(".pdf")) {
@@ -69,22 +60,18 @@ export default function App() {
       const { ok, status, data } = await ingestFile(file, SESSION_ID);
 
       if (status === 409) {
-        setUploadMsg({ type: "error", text: `"${file.name}" is already loaded.` });
-        setTimeout(() => setUploadMsg(null), 2000);
+        showMsg("error", `"${file.name}" is already loaded.`);
         return;
       }
       if (!ok) {
-        setUploadMsg({ type: "error", text: data.detail ?? "Upload failed." });
-        setTimeout(() => setUploadMsg(null), 2000);
+        showMsg("error", data.detail ?? "Upload failed.");
         return;
       }
 
       setDocs((prev) => [...prev, { name: data.filename, chunks: data.chunks_created }]);
-      setUploadMsg({ type: "success", text: `"${data.filename}" added successfully.` });
-      setTimeout(() => setUploadMsg(null), 2000);
+      showMsg("success", `"${data.filename}" added successfully.`);
     } catch {
-      setUploadMsg({ type: "error", text: "Upload failed. Make sure the backend is running." });
-      setTimeout(() => setUploadMsg(null), 2000);
+      showMsg("error", "Upload failed. Make sure the backend is running.");
     } finally {
       setUploading(false);
     }
@@ -176,9 +163,7 @@ export default function App() {
           streaming={streaming}
           docs={docs}
           uploading={uploading}
-          dragging={dragging}
           onUploadFile={uploadFile}
-          onSetDragging={setDragging}
           onAsk={ask}
         />
         <ChatInput
