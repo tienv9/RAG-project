@@ -419,13 +419,19 @@ textarea::placeholder { color: var(--muted); }
 .send-btn:active { transform: scale(.95); }
 .send-btn:disabled { opacity: .35; cursor: not-allowed; }
 
+@keyframes pulse-purple {
+  0%, 100% { border-color: #a855f7; color: #a855f7; box-shadow: 0 0 0 0 rgba(168,85,247,0); }
+  50%       { border-color: #c084fc; color: #c084fc; box-shadow: 0 0 6px 3px rgba(168,85,247,.35); }
+}
+
 .send-btn--stop {
   background: var(--surface2);
-  border: 1px solid var(--danger);
-  color: var(--danger);
+  border: 1px solid #a855f7;
+  color: #a855f7;
   font-size: 12px;
+  animation: pulse-purple 1.4s ease-in-out infinite;
 }
-.send-btn--stop:hover { opacity: 1; background: rgba(250,109,109,.12); }
+.send-btn--stop:hover { opacity: 1; background: rgba(168,85,247,.12); animation: none; border-color: #c084fc; color: #c084fc; }
 
 .toast {
   position: fixed;
