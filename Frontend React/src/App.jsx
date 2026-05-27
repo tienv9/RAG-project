@@ -45,7 +45,14 @@ export default function App() {
     }
   }
 
-  useEffect(() => { checkConnection(); }, []);
+  useEffect(() => {
+    fetchDocuments(SESSION_ID)
+      .then((data) => {
+        setDocs(data.documents.map((name) => ({ name })));
+        setConnected(true);
+      })
+      .catch(() => setConnected(false));
+  }, []);
 
   async function uploadFile(file) {
     if (!file || !file.name.endsWith(".pdf")) {
