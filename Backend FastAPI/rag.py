@@ -124,25 +124,18 @@ def semantic_chunk(pages: list[tuple[int, str]], threshold: float = 0.5, max_wor
 
 
 def process_pdf(file_bytes: bytes, filename: str, session_id: str) -> int:
-    """
-        1. Extract text
-        2. Split into chunks
-        3. Embed each chunk to vector
-        4. store vector in chromadb
-    This then return how many chunks were stored.
-    """
-    
     collection = get_collection(session_id)
     pages = extract_text_from_PDF(file_bytes)
     chunks = semantic_chunk(pages)
 
-    texts = [text for text, _ in chunks]
-    vectors = EMBED.encode(texts).tolist()
+    texts = [text for text, _ in chunks]  # unpack (text, page_nums) tuples from semantic_chunk
+    vectors = EMBED.encode(texts).tolist()  # .tolist() converts numpy array — ChromaDB requires plain Python lists
 
     collection.add(
         documents=texts,
         embeddings=vectors,
         metadatas=[
+            # pages as comma-separated string — ChromaDB metadata values must be scalars, not lists
             {"source": filename, "chunk_index": i, "pages": ",".join(str(p) for p in page_nums)}
             for i, (_, page_nums) in enumerate(chunks)
         ],
@@ -152,15 +145,6 @@ def process_pdf(file_bytes: bytes, filename: str, session_id: str) -> int:
     return len(chunks)
 
 def query_stream(question: str, session_id: str, top_k: int = 3):
-    """
-        1. Embed the question into a vector
-        2. Fetch top_k * 4 candidate chunks from ChromaDB by cosine similarity
-        3. Re-rank candidates with cross-encoder, keep top_k
-        4. Build context string from top chunks and send to LLM
-        5. Stream LLM response token by token
-        6. Yield a final done event with sources
-    """
-    
     collection = get_collection(session_id)
 
     # turn the question into a vector so chromadb can compare it to the stored chunks
@@ -186,10 +170,9 @@ def query_stream(question: str, session_id: str, top_k: int = 3):
     matched_chunks = [chunk for _, chunk, _ in ranked[:top_k]]
     matched_sources = [meta for _, _, meta in ranked[:top_k]]
 
-    # attach the source file and chunk number to each chunk so the llm knows where it came from
     context = "\n\n".join(
-        [f"[Source: {m['source']} chunk {m['chunk_index']}]\n{chunk}"
-         for chunk, m in zip(matched_chunks, matched_sources)]
+        f"[Source: {m['source']} chunk {m['chunk_index']}]\n{chunk}"
+        for chunk, m in zip(matched_chunks, matched_sources)
     )
 
     prompt = (
@@ -206,14 +189,11 @@ def query_stream(question: str, session_id: str, top_k: int = 3):
         "Answer:\n"
     )
 
-    # Deduplicate by (source, pages) so the same page isn't cited twice.
-    seen: set = set()
-    citations: list = []
-    for m in matched_sources:
-        key = (m["source"], m["pages"])
-        if key not in seen:
-            seen.add(key)
-            citations.append({"source": m["source"], "pages": m["pages"]})
+    # Deduplicate by (source, pages) — the same page can appear in multiple top-ranked chunks.
+    citations = list({
+        (m["source"], m["pages"]): {"source": m["source"], "pages": m["pages"]}
+        for m in matched_sources
+    }.values())
 
     for chunk in ollama.generate(model=OLLAMA_MODEL, prompt=prompt, stream=True):
         yield {"type": "token", "content": chunk.response}
@@ -222,12 +202,9 @@ def query_stream(question: str, session_id: str, top_k: int = 3):
 
 
 def doc_exists(filename: str, session_id: str) -> bool:
-    # check if it already exist inside the chromadb - this only compare name for now
-    collection = get_collection(session_id)
-    if collection.count() == 0:
-        return False
-    result = collection.get(where={"source": filename})
-    return len(result["ids"]) > 0
+    # name-only check — two different files with the same name are treated as duplicates
+    result = get_collection(session_id).get(where={"source": filename})
+    return bool(result["ids"])
 
 def clear_docs(session_id: str):
     # ChromaDB has no truncate — delete and recreate is the only way to wipe all vectors.
@@ -236,10 +213,5 @@ def clear_docs(session_id: str):
     chroma_client.get_or_create_collection(collection_name)
 
 def list_docs(session_id: str) -> list[str]:
-    # get list of all documents 
-    collection = get_collection(session_id)
-    if collection.count() == 0:
-        return []
-    all_meta = collection.get(include=["metadatas"])["metadatas"]
-    # Set comprehension deduplicates filenames when multiple chunks share the same source.
-    return list({m["source"] for m in all_meta})
+    all_meta = get_collection(session_id).get(include=["metadatas"])["metadatas"]
+    return list({m["source"] for m in all_meta})  # set deduplicates filenames across chunks

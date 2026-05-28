@@ -195,7 +195,3 @@ class TestListDocs:
         }
         assert sorted(rag.list_docs("session-123")) == ["a.pdf", "b.pdf"]
 
-    def test_does_not_query_collection_when_empty(self):
-        _mock_collection.count.return_value = 0
-        rag.list_docs("session-123")
-        _mock_collection.get.assert_not_called()
