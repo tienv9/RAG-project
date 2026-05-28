@@ -1,4 +1,11 @@
 import { useRef, useEffect, useState } from "react";
+
+function formatPages(pages) {
+  if (!pages) return "";
+  const nums = pages.split(",").map(Number);
+  if (nums.length === 1) return ` — p. ${nums[0]}`;
+  return ` — pp. ${nums[0]}–${nums[nums.length - 1]}`;
+}
 import ReactMarkdown from "react-markdown";
 
 const SUGGESTIONS = [
@@ -83,7 +90,9 @@ export default function ChatWindow({ messages, loading, streaming, docs, uploadi
               {msg.sources && msg.sources.length > 0 && (
                 <div className="sources">
                   {msg.sources.map((s) => (
-                    <span key={s} className="source-tag">◆ {s}</span>
+                    <span key={`${s.source}-${s.pages}`} className="source-tag">
+                      ◆ {s.source}{formatPages(s.pages)}
+                    </span>
                   ))}
                 </div>
               )}
