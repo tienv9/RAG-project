@@ -31,7 +31,7 @@ much more accurately. Use bi-encoder to cast a wide net, cross-encoder to pick t
 ## Current stack
 - **Embeddings**: `all-MiniLM-L6-v2` (HuggingFace, free, 80MB, runs on CPU)
 - **Re-ranker**: `cross-encoder/ms-marco-MiniLM-L-6-v2` (HuggingFace, free, CPU)
-- **Chunking**: semantic — sentence embeddings + cosine similarity to detect topic shifts (`threshold=0.5`, `min_words=50`, `max_words=500`)
+- **Chunking**: semantic — spaCy sentence tokenization (`en_core_web_sm`) + cosine similarity to detect topic shifts (`threshold=0.5`, `min_words=50`, `max_words=500`); batched by paragraph to handle arbitrarily large PDFs
 - **LLM**: Ollama — `llama3.2` (local, free, change `OLLAMA_MODEL` in `rag.py` to swap models)
 - **Vector DB**: ChromaDB (local, persistent, per-session collections)
 - **API**: FastAPI (Python), streaming via `StreamingResponse` + SSE
@@ -150,7 +150,7 @@ Dockerfile.frontend    # node build stage → nginx serve stage
 - Total: ~**$33/month**, or ~$20/month with a 1-year reserved instance
 
 ## Planned improvements (v2)
-- Better sentence boundary detection (spaCy handles abbreviations like "Mr." better than regex)
+- ~~Better sentence boundary detection~~ — done, using spaCy `en_core_web_sm`
 - Source citations with page numbers
 - ChromaDB stays for prod (persisted on EBS volume) — RDS/pgvector ruled out, cost too high
 - Evaluation metrics — check if answers are grounded in retrieved context

@@ -3,6 +3,7 @@ import fitz # type: ignore
 import chromadb # type: ignore
 import ollama # type: ignore
 import numpy as np # type: ignore
+import spacy # type: ignore
 from sentence_transformers import SentenceTransformer, CrossEncoder # type: ignore
 
 OLLAMA_MODEL = "llama3.2"  # change to any model you have pulled locally
@@ -12,6 +13,10 @@ EMBED = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
 # Cross-encoder re-ranks candidate chunks by reading question+chunk together — more accurate than cosine similarity alone.
 RERANKER = CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+
+# Sentence boundary detection — handles abbreviations, decimals, URLs that trip up regex.
+# ner/lemmatizer/attribute_ruler disabled since we only need the sentence segmenter.
+NLP = spacy.load("en_core_web_sm", disable=["ner", "lemmatizer", "attribute_ruler"])
 
 # ChromaDB persists vectors to disk so re-ingesting on every restart isn't needed.
 chroma_client = chromadb.PersistentClient(path="./chroma_db")
@@ -42,14 +47,21 @@ def semantic_chunk(text: str, threshold: float = 0.5, max_words: int = 500, min_
         5. Merge chunks that are too small into their neighbor
         6. Split chunks that are too large by word count
         
-        This can break since with regex split limitation on thing like e.g. or number in text,
-        may also miss context if the context stay on previous chunk like the question is on the paragraph before it.
         the 0.5 threshold is a pure guess, would need extensive testing to find perfect threshold for specific type of doc
-        
+
     """
-    # Split using regex on . ! ? followed by whitespace
-    sentences = re.split(r'(?<=[.!?])\s+', text.strip())
-    sentences = [s.strip() for s in sentences if s.strip()]
+    # Batch by paragraph so spaCy never receives a doc large enough to hit memory limits.
+    # Fallback to regex for any single paragraph that somehow exceeds spaCy's safe range.
+    sentences = []
+    for para in text.strip().split("\n\n"):
+        para = para.strip()
+        if not para:
+            continue
+        if len(para) > 100_000:
+            # degenerate paragraph (no blank lines in PDF) — regex is good enough here
+            sentences.extend(s.strip() for s in re.split(r'(?<=[.!?])\s+', para) if s.strip())
+        else:
+            sentences.extend(sent.text.strip() for sent in NLP(para).sents if sent.text.strip())
 
     if not sentences:
         return []
